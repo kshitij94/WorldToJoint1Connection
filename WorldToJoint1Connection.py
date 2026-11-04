@@ -18,7 +18,7 @@ import util
 importlib.reload(util)
 
 BASE_SKETCH_OFFSET = 0.0  # mm
-INNER_CIRCLE_PCD_MM = 80.0  # mm
+INNER_CIRCLE_PCD_MM = 80.5  # mm
 MIDDLE_CIRCLE_PCD_MM = 140.0  # mm
 OUTER_CIRCLE_PCD_MM = 140.0 + 30.0 + 30.0  # mm
 OUTER_CIRCLE_EXTRUDE_DISTANCE_MM = 5.0  # mm
@@ -35,8 +35,34 @@ MOUNTING_HOLE_PCD_MM = (MIDDLE_CIRCLE_PCD_MM + OUTER_CIRCLE_PCD_MM) / 2.0  # 170
 MOUNTING_HOLE_COUNT = 3
 MOUNTING_HOLE_START_ANGLE_DEG = 60.0  # degrees (centered between supports at 0 and 120 deg)
 
+# Wire pass-through hole (cuts through the middle cylinder wall at the bottom)
+WIRE_HOLE_DIAMETER_MM = 12.0  # mm (diameter of wire exit hole)
+WIRE_HOLE_CENTER_Z_MM = OUTER_CIRCLE_EXTRUDE_DISTANCE_MM + (WIRE_HOLE_DIAMETER_MM / 2.0)  # 11.0 mm (bottom touches flange top)
+WIRE_HOLE_ANGLE_DEG = 180.0  # degrees (back of cylinder, centered between 120 and 240 deg supports)
+
+# STL export settings
+STL_EXPORT_NAME = "WorldToJoint1_Base"
+
 app = adsk.core.Application.get()
 ui = app.userInterface
+
+
+def save_stl(design: adsk.fusion.Design, components_to_export: list) -> list:
+    """Exports components as STL files into the user's Downloads directory (matching joint2_joint3_connector)."""
+    downloads_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+    if not os.path.exists(downloads_dir):
+        downloads_dir = os.path.join(os.path.expanduser("~"), "Desktop")
+
+    export_mgr = design.exportManager
+    exported_paths = []
+    for comp, name in components_to_export:
+        file_path = os.path.join(downloads_dir, f"{name}.stl")
+        stl_options = export_mgr.createSTLExportOptions(comp, file_path)
+        stl_options.meshRefinement = adsk.fusion.MeshRefinementSettings.MeshRefinementHigh
+        stl_options.sendToPrintUtility = False
+        export_mgr.execute(stl_options)
+        exported_paths.append(file_path)
+    return exported_paths
 
 
 def construct_triangular_supports(
@@ -144,6 +170,57 @@ def construct_mounting_holes(
         )
 
 
+def construct_wire_hole(
+    comp: adsk.fusion.Component,
+    hole_diameter_mm: float = WIRE_HOLE_DIAMETER_MM,
+    center_z_mm: float = WIRE_HOLE_CENTER_Z_MM,
+    angle_deg: float = WIRE_HOLE_ANGLE_DEG,
+):
+    """Cuts a horizontal wire exit hole through the middle cylinder wall at the bottom."""
+    extrudes = comp.features.extrudeFeatures
+    r_cut_cm = (MIDDLE_CIRCLE_PCD_MM / 2.0 + 15.0) / 10.0
+    hole_radius_cm = (hole_diameter_mm / 2.0) / 10.0
+    center_z_cm = center_z_mm / 10.0
+
+    # Determine sketch plane and cut distance along the radial direction of angle_deg
+    if abs((angle_deg - 180.0) % 360.0) < 1e-4:
+        sketch_plane = comp.yZConstructionPlane
+        cut_distance_cm = -r_cut_cm
+    elif abs(angle_deg % 360.0) < 1e-4:
+        sketch_plane = comp.yZConstructionPlane
+        cut_distance_cm = r_cut_cm
+    elif abs((angle_deg - 90.0) % 360.0) < 1e-4:
+        sketch_plane = comp.xZConstructionPlane
+        cut_distance_cm = r_cut_cm
+    elif abs((angle_deg - 270.0) % 360.0) < 1e-4:
+        sketch_plane = comp.xZConstructionPlane
+        cut_distance_cm = -r_cut_cm
+    else:
+        # Create a construction plane through the Z-axis whose normal points along angle_deg
+        plane_input = comp.constructionPlanes.createInput()
+        plane_input.setByAngle(
+            comp.zConstructionAxis,
+            adsk.core.ValueInput.createByReal(math.radians(angle_deg - 90.0)),
+            comp.xZConstructionPlane,
+        )
+        sketch_plane = comp.constructionPlanes.add(plane_input)
+        cut_distance_cm = r_cut_cm
+
+    sketch = comp.sketches.add(sketch_plane)
+    center_pt = sketch.modelToSketchSpace(adsk.core.Point3D.create(0.0, 0.0, center_z_cm))
+    circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(center_pt, hole_radius_cm)
+    circle.isFixed = True
+
+    prof = util.find_profile_by_outer_curve(sketch, circle)
+    if not prof and sketch.profiles.count > 0:
+        prof = sketch.profiles.item(0)
+
+    if prof:
+        cut_input = extrudes.createInput(prof, adsk.fusion.FeatureOperations.CutFeatureOperation)
+        cut_input.setDistanceExtent(False, adsk.core.ValueInput.createByReal(cut_distance_cm))
+        extrudes.add(cut_input)
+
+
 def run(context):
     try:
         design = adsk.fusion.Design.cast(app.activeProduct)
@@ -171,7 +248,7 @@ def run(context):
                 operation=adsk.fusion.FeatureOperations.JoinFeatureOperation,
             )
 
-        # Full body cut of the inner circle (80mm PCD)
+        # Full body cut of the inner circle (80.5mm PCD)
         inner_profile = util.find_profile_by_outer_curve(sketch, inner_circle)
         if inner_profile:
             try:
@@ -181,7 +258,7 @@ def run(context):
                     operation=adsk.fusion.FeatureOperations.CutFeatureOperation,
                 )
             except Exception:
-                # The inner 80mm region is already naturally hollow from the annular profile extrusions
+                # The inner 80.5mm region is already naturally hollow from the annular profile extrusions
                 pass
 
         # 3 triangular revolute supports (30 degrees each, spaced at 120 degrees)
@@ -189,6 +266,15 @@ def run(context):
 
         # 3 mounting holes (6mm diameter) on the outer flange in the unsupported gaps (at 60, 180, 300 deg)
         construct_mounting_holes(base_comp)
+
+        # Wire pass-through hole (12mm diameter) through the middle cylinder wall at the bottom
+        construct_wire_hole(base_comp)
+
+        # Export component as STL for 3D printing
+        components_to_export = [
+            (base_comp, STL_EXPORT_NAME),
+        ]
+        save_stl(design, components_to_export)
 
     except:
         if ui:
