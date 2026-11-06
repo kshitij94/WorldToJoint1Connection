@@ -40,6 +40,12 @@ WIRE_HOLE_DIAMETER_MM = 12.0  # mm (diameter of wire exit hole)
 WIRE_HOLE_CENTER_Z_MM = OUTER_CIRCLE_EXTRUDE_DISTANCE_MM + (WIRE_HOLE_DIAMETER_MM / 2.0)  # 11.0 mm (bottom touches flange top)
 WIRE_HOLE_ANGLE_DEG = 180.0  # degrees (back of cylinder, centered between 120 and 240 deg supports)
 
+# 6 Cylinder screw holes (6mm diameter on PCD 134mm)
+CYLINDER_SCREW_HOLE_PCD_MM = 134.0  # mm
+CYLINDER_SCREW_HOLE_DIAMETER_MM = 6.0  # mm
+CYLINDER_SCREW_HOLE_COUNT = 6
+CYLINDER_SCREW_HOLE_START_ANGLE_DEG = 30.0  # degrees (interleaved between supports at 0, 120, 240 deg)
+
 # STL export settings
 STL_EXPORT_NAME = "WorldToJoint1_Base"
 
@@ -235,6 +241,16 @@ def run(context):
         inner_circle = util.create_circle(sketch, origin, INNER_CIRCLE_PCD_MM / 2.0)
         middle_circle = util.create_circle(sketch, origin, MIDDLE_CIRCLE_PCD_MM / 2.0)
         outer_circle = util.create_circle(sketch, origin, OUTER_CIRCLE_PCD_MM / 2.0)
+
+        # 6 smaller circles (6mm diameter on PCD 134mm) for screw holes
+        util.draw_circles_pattern(
+            sketch=sketch,
+            center_point=origin,
+            pcd_mm=CYLINDER_SCREW_HOLE_PCD_MM,
+            hole_diameter_mm=CYLINDER_SCREW_HOLE_DIAMETER_MM,
+            hole_count=CYLINDER_SCREW_HOLE_COUNT,
+            start_angle_deg=CYLINDER_SCREW_HOLE_START_ANGLE_DEG,
+        )
 
         outer_profile = util.find_profile_by_outer_curve(sketch, outer_circle)
         if outer_profile:
