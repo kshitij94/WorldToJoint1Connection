@@ -46,8 +46,8 @@ CYLINDER_SCREW_HOLE_DIAMETER_MM = 3.1  # mm (for M3 screws)
 CYLINDER_SCREW_HOLE_COUNT = 6
 CYLINDER_SCREW_HOLE_START_ANGLE_DEG = 30.0  # degrees (interleaved between supports at 0, 120, 240 deg)
 
-# Screw driver access holes (10mm counterbore from bottom Z=0 up to 5mm below top surface)
-SCREW_ACCESS_HOLE_DIAMETER_MM = 10.0  # mm (driver access hole diameter)
+# Screw driver access holes (20mm counterbore from bottom Z=0 up to 5mm below top surface)
+SCREW_ACCESS_HOLE_DIAMETER_MM = 20.0  # mm (driver access hole diameter)
 SCREW_HEAD_SHELF_THICKNESS_MM = 5.0  # mm (depth left from top surface with 3.1mm hole)
 
 # STL export settings
@@ -239,7 +239,7 @@ def construct_screw_access_holes(
     start_angle_deg: float = CYLINDER_SCREW_HOLE_START_ANGLE_DEG,
     shelf_thickness_mm: float = SCREW_HEAD_SHELF_THICKNESS_MM,
 ):
-    """Cuts 10mm screw driver access holes from the bottom (Z=0) up to
+    """Cuts screw driver access holes from the bottom (Z=0) up to
 
     shelf_thickness_mm below the top surface, allowing screws to be driven in the +Z direction.
     """
@@ -322,7 +322,7 @@ def run(context):
         # Wire pass-through hole (12mm diameter) through the middle cylinder wall at the bottom
         construct_wire_hole(base_comp)
 
-        # 6 screw driver access holes (10mm diameter) from bottom Z=0 to 5mm below top surface
+        # 6 screw driver access holes (20mm diameter) from bottom Z=0 to 5mm below top surface
         construct_screw_access_holes(base_comp)
 
         # Export component as STL for 3D printing
