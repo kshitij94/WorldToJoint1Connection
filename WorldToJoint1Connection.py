@@ -40,11 +40,15 @@ WIRE_HOLE_DIAMETER_MM = 12.0  # mm (diameter of wire exit hole)
 WIRE_HOLE_CENTER_Z_MM = OUTER_CIRCLE_EXTRUDE_DISTANCE_MM + (WIRE_HOLE_DIAMETER_MM / 2.0)  # 11.0 mm (bottom touches flange top)
 WIRE_HOLE_ANGLE_DEG = 180.0  # degrees (back of cylinder, centered between 120 and 240 deg supports)
 
-# 6 Cylinder screw holes (6mm diameter on PCD 134mm)
+# 6 Cylinder screw holes (3.1mm diameter on PCD 134mm)
 CYLINDER_SCREW_HOLE_PCD_MM = 134.0  # mm
-CYLINDER_SCREW_HOLE_DIAMETER_MM = 6.0  # mm
+CYLINDER_SCREW_HOLE_DIAMETER_MM = 3.1  # mm (for M3 screws)
 CYLINDER_SCREW_HOLE_COUNT = 6
 CYLINDER_SCREW_HOLE_START_ANGLE_DEG = 30.0  # degrees (interleaved between supports at 0, 120, 240 deg)
+
+# Screw driver access holes (10mm counterbore from bottom Z=0 up to 5mm below top surface)
+SCREW_ACCESS_HOLE_DIAMETER_MM = 10.0  # mm (driver access hole diameter)
+SCREW_HEAD_SHELF_THICKNESS_MM = 5.0  # mm (depth left from top surface with 3.1mm hole)
 
 # STL export settings
 STL_EXPORT_NAME = "WorldToJoint1_Base"
@@ -227,6 +231,38 @@ def construct_wire_hole(
         extrudes.add(cut_input)
 
 
+def construct_screw_access_holes(
+    comp: adsk.fusion.Component,
+    pcd_mm: float = CYLINDER_SCREW_HOLE_PCD_MM,
+    hole_diameter_mm: float = SCREW_ACCESS_HOLE_DIAMETER_MM,
+    count: int = CYLINDER_SCREW_HOLE_COUNT,
+    start_angle_deg: float = CYLINDER_SCREW_HOLE_START_ANGLE_DEG,
+    shelf_thickness_mm: float = SCREW_HEAD_SHELF_THICKNESS_MM,
+):
+    """Cuts 10mm screw driver access holes from the bottom (Z=0) up to
+
+    shelf_thickness_mm below the top surface, allowing screws to be driven in the +Z direction.
+    """
+    cut_depth_mm = MIDDLE_CIRCLE_EXTRUDE_DISTANCE_MM - shelf_thickness_mm
+    if cut_depth_mm <= 0:
+        return
+
+    access_sketch = comp.sketches.add(comp.xYConstructionPlane)
+    util.draw_circles_pattern(
+        sketch=access_sketch,
+        pcd_mm=pcd_mm,
+        hole_diameter_mm=hole_diameter_mm,
+        hole_count=count,
+        start_angle_deg=start_angle_deg,
+    )
+    if access_sketch.profiles.count > 0:
+        util.extrude_profile(
+            access_sketch,
+            cut_depth_mm,
+            operation=adsk.fusion.FeatureOperations.CutFeatureOperation,
+        )
+
+
 def run(context):
     try:
         design = adsk.fusion.Design.cast(app.activeProduct)
@@ -285,6 +321,9 @@ def run(context):
 
         # Wire pass-through hole (12mm diameter) through the middle cylinder wall at the bottom
         construct_wire_hole(base_comp)
+
+        # 6 screw driver access holes (10mm diameter) from bottom Z=0 to 5mm below top surface
+        construct_screw_access_holes(base_comp)
 
         # Export component as STL for 3D printing
         components_to_export = [
