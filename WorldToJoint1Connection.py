@@ -46,11 +46,6 @@ CYLINDER_SCREW_HOLE_DIAMETER_MM = 6.0  # mm
 CYLINDER_SCREW_HOLE_COUNT = 6
 CYLINDER_SCREW_HOLE_START_ANGLE_DEG = 30.0  # degrees (interleaved between supports at 0, 120, 240 deg)
 
-# Temporary test print settings (generates only a 2mm slice of the top cylinder and screw holes)
-TEST_PRINT_TOP_SLICE_ONLY = True
-TEST_PRINT_SLICE_THICKNESS_MM = 2.0  # mm
-TEST_PRINT_STL_NAME = "WorldToJoint1_TopTestSlice"
-
 # STL export settings
 STL_EXPORT_NAME = "WorldToJoint1_Base"
 
@@ -245,8 +240,7 @@ def run(context):
         origin = adsk.core.Point3D.create(0, 0, 0)
         inner_circle = util.create_circle(sketch, origin, INNER_CIRCLE_PCD_MM / 2.0)
         middle_circle = util.create_circle(sketch, origin, MIDDLE_CIRCLE_PCD_MM / 2.0)
-        if not TEST_PRINT_TOP_SLICE_ONLY:
-            outer_circle = util.create_circle(sketch, origin, OUTER_CIRCLE_PCD_MM / 2.0)
+        outer_circle = util.create_circle(sketch, origin, OUTER_CIRCLE_PCD_MM / 2.0)
 
         # 6 smaller circles (6mm diameter on PCD 134mm) for screw holes
         util.draw_circles_pattern(
@@ -257,23 +251,6 @@ def run(context):
             hole_count=CYLINDER_SCREW_HOLE_COUNT,
             start_angle_deg=CYLINDER_SCREW_HOLE_START_ANGLE_DEG,
         )
-
-        if TEST_PRINT_TOP_SLICE_ONLY:
-            # Temporary test print: only extrude the 2mm cylinder section with the screw holes
-            middle_profile = util.find_profile_by_outer_curve(sketch, middle_circle)
-            if middle_profile:
-                util.extrude_profile(
-                    middle_profile,
-                    TEST_PRINT_SLICE_THICKNESS_MM,
-                    operation=adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
-                )
-
-            # Export test slice as STL for 3D printing
-            components_to_export = [
-                (base_comp, TEST_PRINT_STL_NAME),
-            ]
-            save_stl(design, components_to_export)
-            return
 
         outer_profile = util.find_profile_by_outer_curve(sketch, outer_circle)
         if outer_profile:
